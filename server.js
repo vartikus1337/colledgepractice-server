@@ -6,7 +6,7 @@ const cors = require('cors');
 const app = express();
 const PORT = 3000;
 const USERS_FILE = './users.json';
-// const COMMENTS_JSON = './comments.json';
+const COMMENTS_FILE = './comments.json';
 
 app.use(cors()); // Фикс AxiosError ERR_NETWORK (связанное с портом)
 app.use(bodyParser.json()); // обработчик json
@@ -16,22 +16,23 @@ app.use(bodyParser.json()); // обработчик json
 // 
 
 // Функция для чтения данных из файла
-const readUsersFromFile = () => {
-  if (fs.existsSync(USERS_FILE)) {
-    const data = fs.readFileSync(USERS_FILE);
+const readDataFromFile = (pathToFile) => {
+  if (fs.existsSync(pathToFile)) {
+    const data = fs.readFileSync(pathToFile);
     try {
       return JSON.parse(data)
     } catch {
       return [];
     }
   } else {
+    console.error('No file', pathToFile)
     return [];
   }
 };
 
 // Функция для записи данных в файл
-const writeUsersToFile = (users) => {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+const writeDataToFile = (pathFile, data) => {
+  fs.writeFileSync(pathFile, JSON.stringify(data, null, 2));
 };
 
 // 
@@ -40,8 +41,8 @@ const writeUsersToFile = (users) => {
 
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  const users = readUsersFromFile();
-  console.log(username, password)
+  const users = readDataFromFile(USERS_FILE);
+
   const user = users.find(
     user => user.username === username && user.password === password
   );
@@ -58,7 +59,7 @@ app.post('/login', (req, res) => {
 app.post('/auth', (req, res) => {
   const uuid = req.body;
 
-  const users = readUsersFromFile()
+  const users = readDataFromFile(USERS_FILE);
 
   const ids = users.map(user => user.id);
 
@@ -73,7 +74,7 @@ app.post('/auth', (req, res) => {
 
 app.post('/register', (req, res) => {
   const { username, password, id, mail } = req.body;
-  const users = readUsersFromFile();
+  const users = readDataFromFile(USERS_FILE);
 
   if (users.find(user => user.username === username)) {
     return res.status(409).json({ message: 'Username already exists' });
@@ -87,11 +88,39 @@ app.post('/register', (req, res) => {
   };
 
   users.push(newUser);
-  writeUsersToFile(users);
+  writeDataToFile(USERS_FILE, users);
 
   res.status(201).json({ message: 'User registered successfully' });
   console.log("Пользователь создан")
 });
+
+app.get('/comments', (req, res) => {
+  try {
+    const comments = readDataFromFile(COMMENTS_FILE)
+    comments.forEach(comment => { delete comment.mail });
+    res.status(200).json(comments);
+  } catch (parseErr) {
+      console.error('Ошибка парсинга JSON:', parseErr);
+      res.status(500).json({ message: 'Ошибка сервера' });
+  }
+})
+
+app.post('/new_comment', (req, res) => {
+  const { username, text, mail} = req.body;
+  const newComment = {
+    username,
+    mail,
+    text
+  };
+
+  const comments = readDataFromFile(COMMENTS_FILE);
+
+  comments.push(newComment);
+  writeDataToFile(COMMENTS_FILE, comments);
+
+  res.status(201).json({ message: 'User registered successfully' });
+  console.log(`Комментарий ${username} создан`)
+})
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
